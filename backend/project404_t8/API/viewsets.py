@@ -34,7 +34,12 @@ def uploadView(request):
     if request.method == 'POST':
         author = request.user
         title = request.POST.get('title')
-        body = escape(request.POST.get('body'))
+        # Escape if they have script in it
+        # Otherwise don't escape it and let whatever happens happen
+        body = request.POST.get('body')
+        if "<script>" in body or "</script>" in body:
+            body = escape(body)  
+
         image_link = request.POST.get('imageLink')
         privacy_setting = request.POST.get('privacy')
         shared_authors = request.POST.get('sharedAuthor')
@@ -129,6 +134,7 @@ def postView(request, id):
     # imageExists is whether or not there is an image to display
     # markDown is whether or not to display the plaintext or markdown contents
     # Has permission determines whether or not to display content to the user
+    post.privacy_setting = Services.get_privacy_string_for_post(post.privacy_setting)
     return render(request, 'post/post.html', {
         "post":post,
         "imageExists":imageExists,
@@ -192,16 +198,16 @@ def profileView(request, username):
     # will probably change the edit profile functionality later, and check if profile author == logged in user here
     # get the profile author
     if request.user.username == username:
-        profile_posts = Post.objects.filter(author=author.id)
+        profile_posts = Post.objects.filter(author=author.id).order_by('-published')
     else:
-        print("in else")
-        profile_posts_all = Post.objects.filter(author=author.id)
+        profile_posts_all = Post.objects.filter(author=author.id).order_by('-published')
         profile_posts = []
         for post in profile_posts_all:
-            print("in post for loop")
             if Services.has_permission_to_see_post(request.user.id, post):
-                print("has permission")
                 profile_posts.append(post)
+    for p in profile_posts:
+        if p.is_markdown:
+            p.body = markdownify(p.body)
     
     return render(request, 'profile/profile.html', {'author':author, "posts":profile_posts})
 
